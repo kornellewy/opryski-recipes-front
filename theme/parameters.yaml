@@ -1,1 +1,8 @@
+color_scheme:
+  colors:
+  - {color: '#176b55', name: Primary}
+  - {color: '#f5f7f6', name: Surface}
+  - {color: '#18322b', name: Ink}
+  - {color: '#9a6500', name: Warning}
+  - {color: '#b42318', name: Danger}
 roles: []

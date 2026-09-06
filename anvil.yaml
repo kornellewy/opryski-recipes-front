@@ -1,10 +1,12 @@
 allow_embedding: false
+db_schema: {}
 dependencies:
 - config: {}
   dep_id: dep_lin1x4oec0ytd
   resolution_hints: {app_id: 4UK6WHQ6UX7AKELK, name: Material 3 Theme, package_name: m3}
   version: {version_tag: v1.2.6}
-name: M3 App 1
+metadata: {description: 'Zarządzanie zabiegami ochrony sadu, recepturami i zgodnością.', title: Opryski Recipes}
+name: Opryski Recipes
 native_deps: null
 package_name: M3_App_1
 runtime_options:
@@ -16,3 +18,4 @@ services:
   server_config: {}
   source: /runtime/services/tables.yml
 startup_form: Form1
+uplink_visible: true

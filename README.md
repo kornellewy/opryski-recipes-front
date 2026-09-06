@@ -1,5 +1,21 @@
 # About This [Anvil](https://anvil.works/?utm_source=github:app_README) App
 
+## Opryski Recipes frontend
+
+This checkout contains the Anvil UI for the external `opryski-recipes` MVP.
+The app intentionally has no local Users table or duplicated spray rules: all
+authentication, weather suitability, recipe calculations, compliance snapshots,
+and task transitions are performed by the MVP through the `api` Server Module.
+
+In the Anvil IDE, add the secret `MVP_BASE_URL` with the published HTTPS URL of
+the MVP. The Server Modules `api` and `uplink_client` keep the JWT in
+`anvil.server.session` and call the MVP with an Authorization header. Test the
+owner and worker workflows from the startup Form after the MVP is reachable.
+
+The UI keeps unavailable endpoints visible as disabled `Planowane` controls and
+does not claim support for PIORiN PDF/A-3 export, inventory deductions,
+prewencja/REI, SMS, buffer checks, or billing.
+
 ### Build web apps with nothing but Python.
 
 The app in this repository is built with [Anvil](https://anvil.works?utm_source=github:app_README), the framework for building web apps with nothing but Python. You can clone this app into your own Anvil account to use and modify.
