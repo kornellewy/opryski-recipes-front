@@ -1,3 +1,4 @@
+import anvil.server
 """Ephemeral server-backed view state; no Anvil Data Tables are used."""
 
 from anvil import server
