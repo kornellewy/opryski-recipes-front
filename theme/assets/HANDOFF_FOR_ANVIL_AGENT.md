@@ -339,3 +339,64 @@ Benchmark method for the next Anvil integration pass:
 - `verification/performance-smoke-20260906.json` — repeatable local read-path timings; it does not represent production capacity.
 - `verification/UI-PERFORMANCE-RESEARCH-20260906.md` — local UX/performance recommendations, official references to re-check, and explicit hosted-Anvil limitations.
 - Functional gate: `123 passed` MVP tests, `7 passed` Anvil client tests, `compileall=ok`, `bash uplink/scripts/run_all.sh` `28/28 passed`.
+
+## 16. Hosted Anvil QA handoff (2026-09-06)
+
+This addendum records what was actually verified against the published app at
+`https://jaunty-infamous-seal.anvil.app/`. It supersedes any earlier statement
+that a browser session, production MVP, SMS provider, or local `anvil_app/`,
+`mvp/`, `uplink/`, or `verification/` tree was exercised from this checkout.
+
+### Test results
+
+| Check | Result | Notes |
+|---|---|---|
+| Published app GET | PASS | HTTP 200; final URL is the published Anvil URL; page title is `Opryski Recipes`; startup form metadata is `Form1`. |
+| Published manifest | PASS | `/_/manifest.json` returned HTTP 200. |
+| Anvil runtime JavaScript | PASS | `runner2.bundle.js` returned HTTP 200. |
+| Anvil runtime CSS | PASS | `runner-v3.min.css` returned HTTP 200. |
+| App theme asset | PASS | `/_/theme/theme.css` returned HTTP 200. |
+| Checkout validation | PASS | `anvil --json validate .`: 18 files valid. |
+| Server syntax | PASS | `python -m py_compile server_code/api.py server_code/uplink_client.py`. |
+| Gateway mock suite | PASS | All 27 server callables covered across the mock run plus the logout follow-up; 32 mocked HTTP calls and 9 expected error cases. |
+| Client helper/state smoke | PASS | Result normalization, status labels, task/recipe state, and catalog paging smoke checks passed. |
+| Browser login and role workflows | NOT RUN | No browser automation or test credentials were available in this environment. |
+| Real MVP/Uplink calls | NOT RUN | The published app's Anvil secret and external MVP base URL cannot be inspected from the checkout. |
+
+### Fix before accepting the deployment
+
+1. Set and verify the Anvil secret `MVP_BASE_URL`, then run one real owner
+   login and one worker login against a disposable test account. Confirm the
+   external API allows the published Anvil origin (CORS) and that every path in
+   `server_code/api.py` matches the deployed MVP contract.
+2. Fix `mvp_login`: if the token is accepted but `/auth/me` fails, the function
+   currently returns success with a fallback user. It should clear the token
+   and return an explicit failure, or return a clearly marked partial-session
+   result; otherwise the client can show an owner shell with an invalid session.
+3. Add a real browser QA pass at desktop and <=720px mobile widths: login,
+   owner/worker routing, create kwatera, create recipe, create/dispatch task,
+   worker confirmation, owner authorization, weather safety gate, cancellation,
+   catalog paging, and inventory receipt. Capture screenshots and console/network
+   errors in the release record.
+4. The current UI does not expose every gateway callable. Add user-facing flows
+   for recipe validation/copy/export and inventory/lots/movements/reservation/
+   receipt, or label those operations as deliberately unavailable in this
+   release. Do not claim they are covered by the UI until tested.
+5. Add retry/idempotency handling to `server_code/uplink_client.py` if the MVP
+   contract requires it; the current client performs one HTTP request and has
+   no retry policy. Keep retries limited to safe/idempotent operations and do
+   not duplicate writes.
+6. Replace the stale historical references above with the actual Anvil source
+   package when those artifacts are imported, or keep this addendum as the
+   authoritative checkout-level QA record. The current checkout contains
+   `client_code/`, `server_code/`, `theme/`, and `anvil.yaml`, but not the old
+   `anvil_app/`, `mvp/`, `uplink/`, or `verification/` paths.
+7. Align the PWA manifest name with the product name. The live manifest still
+   reports `M3 App 1` while the page title and app metadata report `Opryski
+   Recipes`; verify the intended Anvil package/display-name setting before
+   release.
+
+### Release decision
+
+**Deployment smoke: PASS. Production acceptance: BLOCKED pending the real
+MVP_BASE_URL/session/browser checks above.**
