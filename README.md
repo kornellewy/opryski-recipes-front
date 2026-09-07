@@ -16,6 +16,31 @@ The UI keeps unavailable endpoints visible as disabled `Planowane` controls and
 does not claim support for PIORiN PDF/A-3 export, inventory deductions,
 prewencja/REI, SMS, buffer checks, or billing.
 
+### Authoritative source layout
+
+This repository is the Anvil frontend package. The authoritative files are:
+
+- `anvil.yaml` — app metadata, startup form, dependency, and runtime settings
+- `client_code/` — `Form1` and reusable card Forms
+- `server_code/api.py` — server-callable gateway to the external MVP
+- `server_code/uplink_client.py` — server-only HTTP, retry, JWT, and idempotency handling
+- `theme/` — app theme parameters, CSS, and handoff assets
+
+The external FastAPI MVP remains the source of truth for authentication,
+safety decisions, recipe calculations, weather, inventory, and spray-task
+transitions. This checkout intentionally does not contain `anvil_app/`, `mvp/`,
+`uplink/`, or `verification/` directories.
+
+Owner coverage includes recipe validation/copy/export tools and inventory
+balances, lots/receipt, movements, and reservation details. Add the Anvil secret
+`MVP_BASE_URL` before testing those flows against a disposable MVP account.
+
+The login gateway sends OAuth2-compatible `username`, `password`, and
+`grant_type=password` fields, validates `/auth/me` before success, and clears
+the session if validation fails. Read-only requests retry bounded transient
+failures; mutations receive one generated `Idempotency-Key` and are never
+retried. Login itself never receives an idempotency key.
+
 ### Build web apps with nothing but Python.
 
 The app in this repository is built with [Anvil](https://anvil.works?utm_source=github:app_README), the framework for building web apps with nothing but Python. You can clone this app into your own Anvil account to use and modify.

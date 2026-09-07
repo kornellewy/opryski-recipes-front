@@ -40,7 +40,11 @@ def mvp_login(email, password):
     if not isinstance(email, str) or not email.strip() or not isinstance(password, str) or not password:
         return {"ok": False, "code": 422, "kind": "validation", "message": "Podaj email i hasło."}
 
-    result = _request("POST", "/auth/login", payload={"email": email.strip(), "password": password})
+    result = _request(
+        "POST",
+        "/auth/login",
+        payload={"username": email.strip(), "password": password, "grant_type": "password"},
+    )
     if not result.get("ok"):
         return result
 
@@ -58,10 +62,17 @@ def mvp_login(email, password):
     me_result = _request("GET", "/auth/me")
     if me_result.get("ok"):
         return {"ok": True, "data": me_result.get("data")}
-    public_user = data.get("user") or data.get("me") or {
-        key: value for key, value in data.items() if key not in {"access_token", "token", "jwt"}
+    # Never leave a token in the Anvil session when the server cannot validate
+    # it. Returning a fallback user here would make the client appear logged in
+    # while every subsequent protected request is unauthenticated.
+    anvil.server.session.clear()
+    return {
+        "ok": False,
+        "code": me_result.get("code", 502),
+        "kind": "session_validation",
+        "message": "Nie udało się potwierdzić sesji po zalogowaniu.",
+        "detail": me_result,
     }
-    return {"ok": True, "data": public_user}
 
 
 @anvil.server.callable

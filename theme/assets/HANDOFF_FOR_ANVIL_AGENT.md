@@ -369,23 +369,18 @@ that a browser session, production MVP, SMS provider, or local `anvil_app/`,
    login and one worker login against a disposable test account. Confirm the
    external API allows the published Anvil origin (CORS) and that every path in
    `server_code/api.py` matches the deployed MVP contract.
-2. Fix `mvp_login`: if the token is accepted but `/auth/me` fails, the function
-   currently returns success with a fallback user. It should clear the token
-   and return an explicit failure, or return a clearly marked partial-session
-   result; otherwise the client can show an owner shell with an invalid session.
+2. **Resolved in the 2026-09-07 pass:** `mvp_login` now clears the token and
+   returns explicit failure when `/auth/me` cannot validate it.
 3. Add a real browser QA pass at desktop and <=720px mobile widths: login,
    owner/worker routing, create kwatera, create recipe, create/dispatch task,
    worker confirmation, owner authorization, weather safety gate, cancellation,
    catalog paging, and inventory receipt. Capture screenshots and console/network
    errors in the release record.
-4. The current UI does not expose every gateway callable. Add user-facing flows
-   for recipe validation/copy/export and inventory/lots/movements/reservation/
-   receipt, or label those operations as deliberately unavailable in this
-   release. Do not claim they are covered by the UI until tested.
-5. Add retry/idempotency handling to `server_code/uplink_client.py` if the MVP
-   contract requires it; the current client performs one HTTP request and has
-   no retry policy. Keep retries limited to safe/idempotent operations and do
-   not duplicate writes.
+4. **Resolved in the 2026-09-07 pass:** owner-facing recipe validation,
+   copy/export, and inventory balances/lots/receipt/movements/reservation
+   controls now exist. They still require real MVP/browser testing.
+5. **Resolved in the 2026-09-07 pass:** read retries and mutation
+   idempotency headers are implemented in `server_code/uplink_client.py`.
 6. Replace the stale historical references above with the actual Anvil source
    package when those artifacts are imported, or keep this addendum as the
    authoritative checkout-level QA record. The current checkout contains
@@ -400,3 +395,37 @@ that a browser session, production MVP, SMS provider, or local `anvil_app/`,
 
 **Deployment smoke: PASS. Production acceptance: BLOCKED pending the real
 MVP_BASE_URL/session/browser checks above.**
+
+## 17. Implementation pass (2026-09-07)
+
+The requested frontend implementation plan is now applied to this checkout:
+
+- `mvp_login` sends OAuth2-compatible `username`, `password`, and
+  `grant_type=password` fields, validates `/auth/me`, and clears the Anvil
+  session before returning failure when validation fails.
+- `uplink_client` retries only read requests (`GET`, `HEAD`, `OPTIONS`) up to
+  three attempts for transport/status-0 and transient 5xx failures. Mutations
+  are single-attempt operations with one generated `Idempotency-Key`; login is
+  explicitly excluded from that header.
+- Owner navigation now includes recipe tools for validation, copy, and export,
+  plus a Magazyn view for balances, lots/receipt, movements, and reservation
+  details. Any unsupported report work remains visibly `Planowane`.
+- `README.md` now documents the authoritative Anvil layout and explicitly says
+  that `anvil_app/`, `mvp/`, `uplink/`, and `verification/` are not part of this
+  frontend checkout.
+
+Verification for this pass:
+
+- `anvil --json validate .`: **18 files valid**.
+- Python compilation for `server_code/api.py`, `server_code/uplink_client.py`,
+  and `client_code/Form1/__init__.py`: **PASS**.
+- Mock gateway contract: **PASS** — 27 callable functions counted; OAuth2 login,
+  failed `/auth/me` rollback, three-attempt read retry, mutation idempotency,
+  and no-retry login/mutation behavior exercised.
+- Local MVP pytest/API smoke suite: **not available in this checkout**.
+- Hosted browser acceptance: still pending a disposable owner/worker account
+  and a real Anvil browser session against the configured MVP URL.
+- Hosted GET/manifest smoke is reachable (HTTP 200), but the current published
+  bundle does not yet contain the newly added `Narzędzia receptury` label. Push
+  or publish this checkout in Anvil, then repeat the manifest and browser checks
+  before treating the hosted target as this implementation pass.

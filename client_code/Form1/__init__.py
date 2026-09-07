@@ -13,8 +13,10 @@ class Form1(Form1Template):
     "maps": ("GOSPODARSTWO", "Mapy kwater", "owner_maps_view"),
     "sprays": ("OPERACJE", "Opryski", "owner_sprays_view"),
     "recipes": ("OPERACJE", "Receptury", "owner_recipes_view"),
+    "recipe_tools": ("OPERACJE", "Narzędzia receptury", "owner_recipe_tools_view"),
     "workers": ("GOSPODARSTWO", "Pracownicy", "owner_workers_view"),
     "catalog": ("GOSPODARSTWO", "Katalog środków", "owner_catalog_view"),
+    "inventory": ("GOSPODARSTWO", "Magazyn", "owner_inventory_view"),
     "weather": ("GOSPODARSTWO", "Pogoda", "owner_weather_view"),
     "reports": ("SYSTEM", "Raporty", "owner_reports_view"),
     "settings": ("SYSTEM", "Ustawienia", "owner_settings_view"),
@@ -166,6 +168,8 @@ class Form1(Form1Template):
       self._refresh_workers()
     elif view_name == "catalog":
       self._refresh_catalog()
+    elif view_name == "inventory":
+      self._refresh_inventory()
     elif view_name == "weather":
       self._refresh_weather()
 
@@ -189,11 +193,17 @@ class Form1(Form1Template):
   @handle("nav_recipes_button", "click")
   def nav_recipes_button_click(self, **event_args): self._show_owner_view("recipes")
 
+  @handle("nav_recipe_tools_button", "click")
+  def nav_recipe_tools_button_click(self, **event_args): self._show_owner_view("recipe_tools")
+
   @handle("nav_workers_button", "click")
   def nav_workers_button_click(self, **event_args): self._show_owner_view("workers")
 
   @handle("nav_catalog_button", "click")
   def nav_catalog_button_click(self, **event_args): self._show_owner_view("catalog")
+
+  @handle("nav_inventory_button", "click")
+  def nav_inventory_button_click(self, **event_args): self._show_owner_view("inventory")
 
   @handle("nav_weather_button", "click")
   def nav_weather_button_click(self, **event_args): self._show_owner_view("weather")
@@ -367,6 +377,17 @@ class Form1(Form1Template):
     self._set_enabled("catalog_previous_button", self._catalog_offset > 0)
     self._set_enabled("catalog_next_button", self._catalog_offset + 50 < self.state.catalog_total)
 
+  def _refresh_inventory(self):
+    result = self._server_call("mvp_inventory")
+    if self._handle_result(result, target="inventory_message"):
+      self._set_text("inventory_balances_result", json.dumps(result_data(result, {}), ensure_ascii=False, indent=2))
+    lots = self._server_call("mvp_inventory_lots")
+    if self._handle_result(lots, target="inventory_message"):
+      self._set_text("inventory_lots_result", json.dumps(result_data(lots, {}), ensure_ascii=False, indent=2))
+    movements = self._server_call("mvp_inventory_movements")
+    if self._handle_result(movements, target="inventory_message"):
+      self._set_text("inventory_movements_result", json.dumps(result_data(movements, {}), ensure_ascii=False, indent=2))
+
   @handle("catalog_previous_button", "click")
   def catalog_previous_button_click(self, **event_args):
     self._catalog_offset = max(0, self._catalog_offset - 50)
@@ -524,6 +545,64 @@ class Form1(Form1Template):
     if self._handle_result(result):
       self._set_message("workspace_message", "Szkic receptury zapisany.")
       self._refresh_recipes()
+
+  def _recipe_action_result(self, result):
+    if self._handle_result(result, target="recipe_action_message"):
+      self._set_text("recipe_action_result", json.dumps(result_data(result, {}), ensure_ascii=False, indent=2))
+
+  def _recipe_action_id(self):
+    recipe_id = (self.recipe_id_action_input.text or "").strip()
+    if not recipe_id:
+      self._set_message("recipe_action_message", "Podaj identyfikator receptury.")
+      return None
+    return recipe_id
+
+  @handle("validate_recipe_button", "click")
+  def validate_recipe_button_click(self, **event_args):
+    recipe_id = self._recipe_action_id()
+    if recipe_id:
+      self._recipe_action_result(self._server_call("mvp_recipe_validation", recipe_id))
+
+  @handle("copy_recipe_button", "click")
+  def copy_recipe_button_click(self, **event_args):
+    recipe_id = self._recipe_action_id()
+    if recipe_id:
+      self._recipe_action_result(self._server_call("mvp_recipe_copy", recipe_id))
+
+  @handle("export_recipe_button", "click")
+  def export_recipe_button_click(self, **event_args):
+    recipe_id = self._recipe_action_id()
+    if recipe_id:
+      export_format = (self.recipe_export_format_input.text or "json").strip().lower() or "json"
+      self._recipe_action_result(self._server_call("mvp_recipe_export", recipe_id, export_format))
+
+  @handle("refresh_inventory_button", "click")
+  def refresh_inventory_button_click(self, **event_args): self._refresh_inventory()
+
+  @handle("reservation_detail_button", "click")
+  def reservation_detail_button_click(self, **event_args):
+    reservation_id = (self.reservation_id_input.text or "").strip()
+    if not reservation_id:
+      self._set_message("inventory_message", "Podaj identyfikator rezerwacji.")
+      return
+    result = self._server_call("mvp_inventory_reservation", reservation_id)
+    if self._handle_result(result, target="inventory_message"):
+      self._set_text("reservation_result", json.dumps(result_data(result, {}), ensure_ascii=False, indent=2))
+
+  @handle("receipt_inventory_button", "click")
+  def receipt_inventory_button_click(self, **event_args):
+    try:
+      payload = json.loads(self.inventory_receipt_input.text or "{}")
+    except (TypeError, ValueError):
+      self._set_message("inventory_message", "Przyjęcie magazynowe musi być poprawnym JSON-em.")
+      return
+    if not isinstance(payload, dict):
+      self._set_message("inventory_message", "Przyjęcie magazynowe musi być obiektem JSON.")
+      return
+    result = self._server_call("mvp_inventory_receipt", payload)
+    if self._handle_result(result, target="inventory_message"):
+      self._set_text("receipt_result", json.dumps(result_data(result, {}), ensure_ascii=False, indent=2))
+      self._refresh_inventory()
 
   def _logout(self):
     self._server_call("mvp_logout")
