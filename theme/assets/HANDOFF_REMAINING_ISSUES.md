@@ -6,7 +6,8 @@ Date: 2026-09-07
 
 The current Anvil source is the frontend checkout under `anvil.yaml`,
 `client_code/`, `server_code/`, and `theme/`. The latest local auto-sync
-commit includes the Skulpt runtime fix and the M3 component namespace fix.
+commit includes the Skulpt runtime fix, the M3 component namespace fix, and
+the disabled Planowane controls for unsupported MVP capabilities.
 
 The client helper no longer imports `typing.Any` or uses `Any` annotations;
 Anvil client Python runs under Skulpt, where `typing` is unavailable. Form1
@@ -26,6 +27,8 @@ rules, or task transitions.
 - Duplicate components: **none**.
 - Missing click-handler components: **none**.
 - Recipe, inventory, and worker controls: **present**.
+- Unsupported capabilities: **visible as disabled `Planowane` controls**;
+  details are in `OPEN_ISSUES.md`.
 - `git diff --check`: **PASS**.
 - `anvil --json validate .`: **18 files valid**.
 
@@ -36,8 +39,10 @@ Published URL: `https://jaunty-infamous-seal.anvil.app/`
 - Application GET: **HTTP 200**.
 - Manifest GET: **HTTP 200**.
 - The live manifest still reports `M3 App 1` rather than `Opryski Recipes`.
-- The corrected helper and M3 namespace have not been published to the hosted
-  app yet.
+- The current public unauthenticated smoke is reported as passing at desktop
+  and mobile widths after the helper and M3 namespace fixes.
+- The authorized Anvil publish/sync path is still blocked in this environment
+  by `Access denied to app: GG6QEJZ4UB72TQJU`.
 - Authenticated owner/worker browser QA has not been run.
 - `MVP_BASE_URL`, MVP CORS, and real Uplink requests are not verified.
 

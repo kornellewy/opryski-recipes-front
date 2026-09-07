@@ -536,6 +536,10 @@ class Form1(Form1Template):
     if self._handle_result(result, target="worker_action_message"):
       computed = result_data(result, {}) or {}
       self.worker_recipe_result.text = json.dumps(computed, ensure_ascii=False, indent=2)
+      self._set_text(
+        "worker_ppe_result",
+        "Dane produktu/PPE są pokazane w wyniku serwera powyżej. Prewencja i REI: Planowane.",
+      )
 
   @handle("worker_confirm_button", "click")
   def worker_confirm_button_click(self, **event_args): self._worker_task_action("worker-confirm")

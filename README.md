@@ -15,6 +15,8 @@ owner and worker workflows from the startup Form after the MVP is reachable.
 The UI keeps unavailable endpoints visible as disabled `Planowane` controls and
 does not claim support for PIORiN PDF/A-3 export, inventory deductions,
 prewencja/REI, SMS, buffer checks, or billing.
+The complete roadmap is listed in `OPEN_ISSUES.md`; the settings view links to
+that file and does not attach handlers to any unavailable control.
 
 ### Authoritative source layout
 

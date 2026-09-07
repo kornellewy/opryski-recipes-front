@@ -215,7 +215,7 @@ Put them behind disabled controls with a `Planowane` label and link them to
 - [x] Worker can start/complete only after owner authorization.
 - [x] Owner can cancel a non-terminal task with reason and disposal flag.
 - [x] 409 responses refresh state instead of showing success.
-- [x] `python -m unittest -q tests/test_server_code_contract.py` reports eight passing gateway tests.
+- [x] `python tests/test_server_code_contract.py` reports ten passing gateway tests.
 
 ## 13. Authoritative Anvil source layout
 
@@ -262,7 +262,7 @@ that a browser session, production MVP, SMS provider, or local `anvil_app/`,
 | App theme asset | PASS | `/_/theme/theme.css` returned HTTP 200. |
 | Checkout validation | PASS | `anvil --json validate .`: 18 files valid. |
 | Server syntax | PASS | `python -m py_compile server_code/api.py server_code/uplink_client.py`. |
-| Gateway mock suite | PASS | 30 callable registrations covered by the eight-test contract harness, including login rollback, retry, idempotency, export validation, weather snapshot, and route mapping. |
+| Gateway mock suite | PASS | 30 callable registrations covered by the ten-test contract harness, including login rollback, retry, idempotency, export validation, weather snapshot, and route mapping. |
 | Client helper/state smoke | PASS | Result normalization, status labels, task/recipe state, and catalog paging smoke checks passed. |
 | Browser login and role workflows | NOT RUN | No browser automation or test credentials were available in this environment. |
 | Real MVP/Uplink calls | NOT RUN | The published app's Anvil secret and external MVP base URL cannot be inspected from the checkout. |
@@ -403,3 +403,36 @@ current blocker. Production acceptance remains blocked until the corrected
 source is published, the hosted desktop/mobile smoke passes, the MVP secret
 and CORS are verified, the manifest name is changed from `M3 App 1` to
 `Opryski Recipes`, and disposable owner/worker flows succeed.
+
+## 20. Latest local verification after roadmap-control pass (2026-09-07)
+
+The current auto-synced local HEAD is `7e67ca8`; `origin/master` remains
+`73948b3` because this environment did not push. The source now also exposes
+the unsupported capabilities as disabled `Planowane` controls in the settings
+view, adds the worker PPE/weather safety copy, and records the roadmap in
+`OPEN_ISSUES.md`. No disabled control calls the MVP.
+
+Local verification after that pass:
+
+- `python tests/test_server_code_contract.py`: **10 tests passed**.
+- Registered Server callables: **30/30**.
+- Python compilation: **PASS**.
+- `anvil --json validate .`: **18 files valid**.
+- M3 source scan: **30 correct TextInput paths; 0 stale direct paths**.
+- Duplicate component names and missing click-handler components: **none**.
+- Credential scan and `git diff --check`: **PASS**.
+
+Public HTTP smoke remains reachable at the published URL (application and
+manifest HTTP 200; page title `Opryski Recipes`). The live manifest still says
+`M3 App 1`. The latest supplied browser handoff reports unauthenticated
+desktop/mobile smoke passing, but authenticated MVP/Uplink flows remain
+unverified here. A fresh sync attempt was rejected with:
+
+```text
+Access denied to app: GG6QEJZ4UB72TQJU
+```
+
+Production acceptance remains blocked until an authorized Anvil account
+publishes the local HEAD, corrects the manifest display name, configures
+`MVP_BASE_URL` and MVP CORS, and completes disposable owner/worker browser
+flows.
