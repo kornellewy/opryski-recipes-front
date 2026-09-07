@@ -35,10 +35,18 @@ Owner coverage includes recipe validation/copy/export tools and inventory
 balances, lots/receipt, movements, and reservation details. Add the Anvil secret
 `MVP_BASE_URL` before testing those flows against a disposable MVP account.
 
-Worker tasks are scoped to `GET /workers/me/tasks`. The worker mobile tabs are
+Worker tasks are scoped to `GET /workers/me/tasks` through the
+`mvp_worker_my_tasks` Server Module callable. The worker mobile tabs are
 `Dziś`, `Zadanie`, and `Mapa`; action buttons mirror server states only. The
 owner authorization control remains unavailable unless the server reports an
 explicit green/safe weather status.
+
+Task transitions use the MVP's explicit routes (`dispatch`, `worker-confirm`,
+`owner-authorize`, `execution-started`, `execution-completed`, and `cancel`).
+Recipe compute uses `POST /recipes/{id}/compute?area_ha=...`; catalog products
+use `/catalog/products`; inventory lots and receipts use `/inventory` and
+`POST /inventory/lots`. Task creation obtains a retryable server weather
+snapshot before posting the task.
 
 The login gateway sends OAuth2-compatible `username`, `password`, and
 `grant_type=password` fields, validates `/auth/me` before success, and clears

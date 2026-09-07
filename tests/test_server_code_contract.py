@@ -108,17 +108,61 @@ class ServerCodeContractTests(unittest.TestCase):
         self.assertEqual(len(self.calls), 1)
         self.assertTrue(self.calls[0][1]["headers"].get("Idempotency-Key"))
 
-    def test_invalid_export_format_and_exact_routes(self):
+    def test_invalid_export_format(self):
         self.session["mvp_jwt"] = "jwt"
         invalid = self.api.mvp_recipe_export("recipe-1", "csv")
         self.assertFalse(invalid["ok"])
         self.assertEqual(invalid["code"], 422)
 
+    def test_exact_route_mapping(self):
+        self.session["mvp_jwt"] = "jwt"
         self.scripted[:] = [{"items": []}, {"items": []}]
         self.api.mvp_recipe_export("recipe-1", "text")
-        self.api.mvp_worker_tasks()
+        self.api.mvp_worker_my_tasks()
         self.assertIn("/recipes/recipe-1/export?format=text", self.calls[0][0])
         self.assertEqual(self.calls[1][0], "https://mvp.example/workers/me/tasks")
+
+        self.calls.clear()
+        self.scripted[:] = [{"ok": True}]
+        self.api.mvp_task_action("task-1", "owner-authorize")
+        self.assertEqual(self.calls[0][0], "https://mvp.example/spray-tasks/task-1/owner-authorize")
+
+        self.calls.clear()
+        self.scripted[:] = [{"computed": True}]
+        self.api.mvp_recipe_compute("recipe-1", 2.5)
+        self.assertEqual(self.calls[0][0], "https://mvp.example/recipes/recipe-1/compute?area_ha=2.5")
+
+        self.calls.clear()
+        self.scripted[:] = [{"items": []}]
+        self.api.mvp_catalog(50, 0)
+        self.assertIn("https://mvp.example/catalog/products?limit=50&offset=0", self.calls[0][0])
+
+        self.calls.clear()
+        self.scripted[:] = [{"items": []}]
+        self.api.mvp_inventory_lots()
+        self.assertEqual(self.calls[0][0], "https://mvp.example/inventory")
+
+        self.calls.clear()
+        self.scripted[:] = [{"received": True}]
+        self.api.mvp_inventory_receipt({"quantity": 1})
+        self.assertEqual(self.calls[0][0], "https://mvp.example/inventory/lots")
+
+    def test_server_weather_snapshot_is_retryable_without_idempotency(self):
+        self.session["mvp_jwt"] = "jwt"
+        self.scripted[:] = [FakeHttpError(503), {"status": "green"}]
+        result = self.api.mvp_server_weather_snapshot({"kwatera_ids": ["k1"]})
+        self.assertTrue(result["ok"])
+        self.assertEqual(len(self.calls), 2)
+        self.assertNotIn("Idempotency-Key", self.calls[0][1]["headers"])
+
+        self.calls.clear()
+        self.scripted[:] = [{"status": "green"}, {"id": "task-1"}]
+        result = self.api.mvp_create_task({"kwatera_ids": ["k1"]})
+        self.assertTrue(result["ok"])
+        self.assertEqual(self.calls[0][0], "https://mvp.example/weather/server-snapshot")
+        self.assertNotIn("Idempotency-Key", self.calls[0][1]["headers"])
+        self.assertEqual(self.calls[1][0], "https://mvp.example/spray-tasks")
+        self.assertTrue(self.calls[1][1]["headers"].get("Idempotency-Key"))
 
     def test_thirty_callable_registrations_and_required_routes(self):
         source = (self.root / "server_code" / "api.py").read_text()
@@ -130,7 +174,8 @@ class ServerCodeContractTests(unittest.TestCase):
         )
         self.assertEqual(count, 30)
         self.assertIn('"/workers/me/tasks"', source)
-        self.assertIn('"/inventory/reservations"', source)
+        self.assertIn('"/catalog/products"', source)
+        self.assertIn('"/weather/server-snapshot"', source)
 
 
 if __name__ == "__main__":

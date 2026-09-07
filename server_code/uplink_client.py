@@ -36,7 +36,7 @@ class MvpClient:
             409: "conflict",
         }.get(status, "upstream")
 
-    def request(self, method, path, *, payload=None, query=None):
+    def request(self, method, path, *, payload=None, query=None, read_only=False):
         if not self.base_url:
             return {
                 "ok": False,
@@ -59,10 +59,10 @@ class MvpClient:
         # Login is intentionally excluded: it must never be replayed with an
         # idempotency key. Every other mutation gets a fresh key per callable
         # request so a server-side replay can safely return the original write.
-        if method not in self.READ_METHODS and path != "/auth/login":
+        if method not in self.READ_METHODS and not read_only and path != "/auth/login":
             headers["Idempotency-Key"] = str(uuid.uuid4())
 
-        attempts = self.MAX_READ_ATTEMPTS if method in self.READ_METHODS else 1
+        attempts = self.MAX_READ_ATTEMPTS if method in self.READ_METHODS or read_only else 1
         for attempt in range(attempts):
             try:
                 data = anvil.http.request(
@@ -77,7 +77,7 @@ class MvpClient:
             except anvil.http.HttpError as error:
                 status = error.status or 503
                 transient = status == 0 or 500 <= status <= 599
-                if transient and method in self.READ_METHODS and attempt + 1 < attempts:
+                if transient and (method in self.READ_METHODS or read_only) and attempt + 1 < attempts:
                     time.sleep(self.RETRY_BACKOFF_SECONDS[attempt])
                     continue
                 return {

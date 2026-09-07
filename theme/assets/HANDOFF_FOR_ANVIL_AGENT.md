@@ -215,7 +215,7 @@ Put them behind disabled controls with a `Planowane` label and link them to
 - [x] Worker can start/complete only after owner authorization.
 - [x] Owner can cancel a non-terminal task with reason and disposal flag.
 - [x] 409 responses refresh state instead of showing success.
-- [x] `python -m unittest -q tests/test_server_code_contract.py` reports six passing gateway tests.
+- [x] `python -m unittest -q tests/test_server_code_contract.py` reports eight passing gateway tests.
 
 ## 13. Authoritative Anvil source layout
 
@@ -262,7 +262,7 @@ that a browser session, production MVP, SMS provider, or local `anvil_app/`,
 | App theme asset | PASS | `/_/theme/theme.css` returned HTTP 200. |
 | Checkout validation | PASS | `anvil --json validate .`: 18 files valid. |
 | Server syntax | PASS | `python -m py_compile server_code/api.py server_code/uplink_client.py`. |
-| Gateway mock suite | PASS | 30 callable registrations covered by the six-test contract harness, including login rollback, retry, idempotency, export validation, and route mapping. |
+| Gateway mock suite | PASS | 30 callable registrations covered by the eight-test contract harness, including login rollback, retry, idempotency, export validation, weather snapshot, and route mapping. |
 | Client helper/state smoke | PASS | Result normalization, status labels, task/recipe state, and catalog paging smoke checks passed. |
 | Browser login and role workflows | NOT RUN | No browser automation or test credentials were available in this environment. |
 | Real MVP/Uplink calls | NOT RUN | The published app's Anvil secret and external MVP base URL cannot be inspected from the checkout. |
@@ -314,9 +314,17 @@ The requested frontend implementation plan is now applied to this checkout:
 - Owner navigation now includes recipe tools for validation, copy, and export,
   plus a Magazyn view for balances, lots/receipt, movements, and reservation
   details. Any unsupported report work remains visibly `Planowane`.
-- Worker refresh uses the scoped `GET /workers/me/tasks` route. Authorization
-  remains disabled unless the server task is worker-confirmed and the server
-  weather status is explicitly green/safe.
+- Worker refresh uses the `mvp_worker_my_tasks` callable and scoped
+  `GET /workers/me/tasks`. Authorization remains disabled unless the server
+  task is worker-confirmed and the server weather status is explicitly
+  green/safe.
+- Task actions map to explicit MVP routes rather than a generic action path;
+  recipe compute passes `area_ha` as a query parameter; catalog products use
+  `/catalog/products`; inventory lots/receipt use `/inventory` and
+  `POST /inventory/lots`.
+- `mvp_server_weather_snapshot` runs before task creation and uses a bounded
+  retryable POST without an idempotency key because the endpoint is read-only.
+- Kwatera creation includes `area_ha` and `polygon_geojson`.
 - `README.md` now documents the authoritative Anvil layout and explicitly says
   that `anvil_app/`, `mvp/`, `uplink/`, and `verification/` are not part of this
   frontend checkout.
@@ -328,7 +336,8 @@ Verification for this pass:
   and `client_code/Form1/__init__.py`: **PASS**.
 - Mock gateway contract: **PASS** — 30 callable functions counted; OAuth2 login,
   failed `/auth/me` rollback, three-attempt read retry, mutation idempotency,
-  and no-retry login/mutation behavior exercised.
+  no-retry login/mutation behavior, weather-snapshot retry, and corrected route
+  mapping exercised.
 - Static Form contract: **PASS** — no duplicate `anvil:name` values, every
   click handler has a matching component, recipe/inventory/worker controls are
   present, and no credential literals are committed.
@@ -341,3 +350,22 @@ Verification for this pass:
   `/workers/me/tasks` contract in its serialized client bundle. Push or publish
   this checkout in Anvil, then repeat the manifest and browser checks before
   treating the hosted target as this implementation pass.
+
+## 18. MVP contract correction pass (2026-09-07)
+
+The frontend gateway now matches the corrected MVP contract:
+
+- Exactly 30 callables are registered, including `mvp_worker_me`,
+  `mvp_worker_my_tasks`, and `mvp_server_weather_snapshot`.
+- Task actions map to the explicit MVP transition routes; no generic
+  `/actions/{action}` path remains.
+- Recipe compute sends `area_ha` as a query parameter.
+- Catalog products use `/catalog/products`.
+- Inventory lots read from `/inventory`; receipts post to `/inventory/lots`.
+- Task creation obtains a retryable server weather snapshot before posting the
+  task. The snapshot is treated as read-only and receives no idempotency key.
+- Kwatera creation sends `area_ha` and `polygon_geojson`.
+
+Verification: `python -m unittest -q tests/test_server_code_contract.py`
+reports **8 tests passing**; Python compilation and `git diff --check` pass;
+`anvil --json validate .` reports **18 files valid** in this environment.

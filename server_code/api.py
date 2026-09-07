@@ -9,8 +9,8 @@ def _client():
     return MvpClient()
 
 
-def _request(method, path, *, payload=None, query=None, clear_on_401=True):
-    result = _client().request(method, path, payload=payload, query=query)
+def _request(method, path, *, payload=None, query=None, clear_on_401=True, read_only=False):
+    result = _client().request(method, path, payload=payload, query=query, read_only=read_only)
     if clear_on_401 and result.get("code") == 401:
         anvil.server.session.clear()
     return result
@@ -176,7 +176,7 @@ def mvp_tasks():
 
 
 @anvil.server.callable
-def mvp_worker_tasks():
+def mvp_worker_my_tasks():
     missing = _require_login()
     return missing or _request("GET", "/workers/me/tasks")
 
@@ -184,7 +184,14 @@ def mvp_worker_tasks():
 @anvil.server.callable
 def mvp_create_task(payload):
     missing = _require_login()
-    return missing or _request("POST", "/spray-tasks", payload=payload)
+    if missing:
+        return missing
+    snapshot = mvp_server_weather_snapshot(payload)
+    if not snapshot.get("ok"):
+        return snapshot
+    task_payload = dict(payload or {})
+    task_payload["weather_snapshot"] = snapshot.get("data")
+    return _request("POST", "/spray-tasks", payload=task_payload)
 
 
 @anvil.server.callable
@@ -196,7 +203,18 @@ def mvp_task_action(task_id, action, payload=None):
     action = _path_value(action)
     if not task_id or not action:
         return {"ok": False, "code": 422, "kind": "validation", "message": "Brak poprawnego zadania lub akcji."}
-    return _request("POST", f"/spray-tasks/{task_id}/actions/{action}", payload=payload or {})
+    action_paths = {
+        "dispatch": "dispatch",
+        "worker-confirm": "worker-confirm",
+        "owner-authorize": "owner-authorize",
+        "execution-started": "execution-started",
+        "execution-completed": "execution-completed",
+        "cancel": "cancel",
+    }
+    action_path = action_paths.get(action)
+    if not action_path:
+        return {"ok": False, "code": 422, "kind": "validation", "message": "Niepoprawna akcja zadania."}
+    return _request("POST", f"/spray-tasks/{task_id}/{action_path}", payload=payload or {})
 
 
 @anvil.server.callable
@@ -208,17 +226,6 @@ def mvp_task_audit(task_id):
     if not task_id:
         return {"ok": False, "code": 422, "kind": "validation", "message": "Brak poprawnego zadania."}
     return _request("GET", f"/spray-tasks/{task_id}/audit")
-
-
-@anvil.server.callable
-def mvp_task_detail(task_id):
-    missing = _require_login()
-    if missing:
-        return missing
-    task_id = _path_value(task_id)
-    if not task_id:
-        return {"ok": False, "code": 422, "kind": "validation", "message": "Brak poprawnego zadania."}
-    return _request("GET", f"/spray-tasks/{task_id}")
 
 
 @anvil.server.callable
@@ -241,7 +248,7 @@ def mvp_recipe_compute(recipe_id, area_ha):
     recipe_id = _path_value(recipe_id)
     if not recipe_id:
         return {"ok": False, "code": 422, "kind": "validation", "message": "Brak poprawnej receptury."}
-    return _request("POST", f"/recipes/{recipe_id}/compute", payload={"area_ha": area_ha})
+    return _request("POST", f"/recipes/{recipe_id}/compute", query={"area_ha": area_ha})
 
 
 @anvil.server.callable
@@ -306,7 +313,7 @@ def mvp_catalog(limit=50, offset=0):
         bounded_offset = max(int(offset), 0)
     except (TypeError, ValueError):
         return {"ok": False, "code": 422, "kind": "validation", "message": "Stronicowanie katalogu jest niepoprawne."}
-    return _request("GET", "/catalog", query={"limit": bounded_limit, "offset": bounded_offset})
+    return _request("GET", "/catalog/products", query={"limit": bounded_limit, "offset": bounded_offset})
 
 
 @anvil.server.callable
@@ -319,8 +326,7 @@ def mvp_inventory():
 
 @anvil.server.callable
 def mvp_inventory_lots():
-    missing = _require_login()
-    return missing or _request("GET", "/inventory/lots")
+    return mvp_inventory()
 
 
 @anvil.server.callable
@@ -341,15 +347,32 @@ def mvp_inventory_reservation(reservation_id):
 
 
 @anvil.server.callable
-def mvp_inventory_reservations():
+def mvp_inventory_receipt(payload):
     missing = _require_login()
-    return missing or _request("GET", "/inventory/reservations")
+    return missing or _request("POST", "/inventory/lots", payload=payload)
 
 
 @anvil.server.callable
-def mvp_inventory_receipt(payload):
+def mvp_worker_me():
     missing = _require_login()
-    return missing or _request("POST", "/inventory/receipt", payload=payload)
+    return missing or _request("GET", "/workers/me")
+
+
+@anvil.server.callable
+def mvp_server_weather_snapshot(payload=None, longitude=None):
+    missing = _require_login()
+    if missing:
+        return missing
+    if longitude is not None and not isinstance(payload, dict):
+        payload = {"lat": payload, "lon": longitude}
+    if not isinstance(payload, dict):
+        return {"ok": False, "code": 422, "kind": "validation", "message": "Brak danych do snapshotu pogody."}
+    return _request(
+        "POST",
+        "/weather/server-snapshot",
+        payload=payload,
+        read_only=True,
+    )
 
 
 

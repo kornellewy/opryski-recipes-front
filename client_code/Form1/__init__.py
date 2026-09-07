@@ -241,13 +241,14 @@ class Form1(Form1Template):
       geometry = json.loads(self.kwatera_geojson_input.text or "")
       latitude = float(self.kwatera_lat_input.text)
       longitude = float(self.kwatera_lon_input.text)
+      area_ha = float(self.kwatera_area_input.text)
     except (TypeError, ValueError):
-      self._set_message("workspace_message", "GeoJSON i współrzędne muszą być poprawne.")
+      self._set_message("workspace_message", "GeoJSON, powierzchnia i współrzędne muszą być poprawne.")
       return
     if not self.kwatera_name_input.text or not self.kwatera_parcel_input.text:
       self._set_message("workspace_message", "Podaj nazwę kwatery i numer działki.")
       return
-    result = self._server_call("mvp_create_kwatera", {"name": self.kwatera_name_input.text, "nr_dzialki_ewidencyjnej": self.kwatera_parcel_input.text, "geometry": geometry, "latitude": latitude, "longitude": longitude})
+    result = self._server_call("mvp_create_kwatera", {"name": self.kwatera_name_input.text, "nr_dzialki_ewidencyjnej": self.kwatera_parcel_input.text, "polygon_geojson": geometry, "latitude": latitude, "longitude": longitude, "area_ha": area_ha})
     if self._handle_result(result):
       self._set_message("workspace_message", "Kwatera zapisana.")
       self._refresh_kwatery()
@@ -272,7 +273,7 @@ class Form1(Form1Template):
       self._render_task_panels()
 
   def _refresh_worker_tasks(self):
-    result = self._server_call("mvp_worker_tasks")
+    result = self._server_call("mvp_worker_my_tasks")
     if self._handle_result(result):
       self.state.apply_tasks(result)
       self._render_task_panels()
