@@ -451,8 +451,8 @@ class Form1(Form1Template):
   @handle("create_task_button", "click")
   def create_task_button_click(self, **event_args):
     try:
-      kwatera_ids = json.loads(self.task_kwatera_ids_input.text or "[]")
-      actual_dose = json.loads(self.task_actual_dose_input.text or "{}")
+      kwatera_ids = json.loads(str(self.task_kwatera_ids_input.text or "[]"))
+      actual_dose = json.loads(str(self.task_actual_dose_input.text or "{}"))
     except (TypeError, ValueError):
       self._set_message("workspace_message", "ID kwater i dawki muszą być poprawnym JSON-em.")
       return
@@ -586,7 +586,7 @@ class Form1(Form1Template):
       self._set_text("recipe_action_result", json.dumps(result_data(result, {}), ensure_ascii=False, indent=2))
 
   def _recipe_action_id(self):
-    recipe_id = (self.recipe_id_action_input.text or "").strip()
+    recipe_id = str(self.recipe_id_action_input.text or "").strip()
     if not recipe_id:
       self._set_message("recipe_action_message", "Podaj identyfikator receptury.")
       return None
@@ -608,7 +608,7 @@ class Form1(Form1Template):
   def export_recipe_button_click(self, **event_args):
     recipe_id = self._recipe_action_id()
     if recipe_id:
-      export_format = (self.recipe_export_format_input.text or "json").strip().lower() or "json"
+      export_format = str(self.recipe_export_format_input.text or "json").strip().lower() or "json"
       self._recipe_action_result(self._server_call("mvp_recipe_export", recipe_id, export_format))
 
   @handle("refresh_inventory_button", "click")
@@ -616,7 +616,7 @@ class Form1(Form1Template):
 
   @handle("reservation_detail_button", "click")
   def reservation_detail_button_click(self, **event_args):
-    reservation_id = (self.reservation_id_input.text or "").strip()
+    reservation_id = str(self.reservation_id_input.text or "").strip()
     if not reservation_id:
       self._set_message("inventory_message", "Podaj identyfikator rezerwacji.")
       return

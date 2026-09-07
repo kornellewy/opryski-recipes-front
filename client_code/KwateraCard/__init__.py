@@ -18,7 +18,7 @@ class KwateraCard(KwateraCardTemplate):
         parcel = getattr(self, "item", None) or {}
         self.parcel_name.text = value(parcel, "name", "label", default="Kwatera")
         self.parcel_number.text = f"Nr działki: {value(parcel, 'nr_dzialki_ewidencyjnej', 'parcel_number', default='—')}"
-        karencja = value(parcel, "karencja_until", default=None)
+        karencja = value(parcel, "karencja_until", default="")
         if karencja:
             self.parcel_status.text, self.parcel_status.role = "× Karencja aktywna", "op-status-danger"
         else:

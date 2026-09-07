@@ -2,7 +2,6 @@ import anvil.server
 """Display-only helpers for the Anvil frontend."""
 
 from datetime import datetime
-from typing import Any
 
 
 STATUS_TEXT = {
@@ -12,7 +11,7 @@ STATUS_TEXT = {
 }
 
 
-def value(data: Any, *keys: str, default: Any = "—") -> Any:
+def value(data, *keys, default="—"):
     if not isinstance(data, dict):
         return default
     for key in keys:

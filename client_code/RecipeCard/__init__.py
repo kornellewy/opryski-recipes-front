@@ -18,5 +18,5 @@ class RecipeCard(RecipeCardTemplate):
         recipe = getattr(self, "item", None) or {}
         self.recipe_name.text = value(recipe, "name", default="Receptura bez nazwy")
         self.recipe_target.text = f"Cel: {value(recipe, 'target', default='—')}"
-        self.recipe_water.text = f"Woda: {format_number(value(recipe, 'water_l_per_ha', default=None), ' l/ha')}"
+        self.recipe_water.text = f"Woda: {format_number(value(recipe, 'water_l_per_ha', default=''), ' l/ha')}"
         self.recipe_products.text = f"Składniki: {value(recipe, 'products_count', default='—')}"

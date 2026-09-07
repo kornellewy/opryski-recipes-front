@@ -376,3 +376,30 @@ Verification: `python -m unittest -q tests/test_server_code_contract.py`
 reports **10 tests passing**, including invocation of all 30 callables and
 explicit 401/403/404/409 handling; Python compilation and `git diff --check` pass;
 `anvil --json validate .` reports **18 files valid** in this environment.
+
+## 19. Latest hosted runtime blocker correction (2026-09-07)
+
+The published runtime reported:
+
+```text
+ModuleNotFoundError: No module named 'm3._Components.TextBox'
+```
+
+The installed Material 3 dependency exposes text inputs under:
+
+```text
+m3._Components.TextInput.TextBox
+m3._Components.TextInput.TextArea
+```
+
+Form1 has been corrected to use those dependency-qualified component paths.
+Inputs whose M3 metadata permits numeric values are coerced to strings before
+JSON parsing or string methods, so the source now passes Anvil semantic
+validation as well as the gateway tests. The M3 correction is local and must
+be published before hosted browser QA can be considered valid.
+
+The prior `typing.Any` client-runtime issue is resolved and is no longer the
+current blocker. Production acceptance remains blocked until the corrected
+source is published, the hosted desktop/mobile smoke passes, the MVP secret
+and CORS are verified, the manifest name is changed from `M3 App 1` to
+`Opryski Recipes`, and disposable owner/worker flows succeed.
