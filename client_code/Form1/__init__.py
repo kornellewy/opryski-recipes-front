@@ -460,6 +460,13 @@ class Form1(Form1Template):
     if not all(required) or not isinstance(kwatera_ids, list):
       self._set_message("workspace_message", "Uzupełnij wszystkie pola zgodności i listę kwater.")
       return
+    coordinates = self._coordinates_for_kwatery(kwatera_ids)
+    if not coordinates:
+      self._set_message("workspace_message", "Wybierz kwaterę z poprawnymi współrzędnymi WGS84.")
+      return
+    snapshot = self._server_call("mvp_server_weather_snapshot", coordinates[0], coordinates[1])
+    if not self._handle_result(snapshot):
+      return
     payload = {
       "przyczyna": self.task_reason_input.text,
       "application_type": self.task_application_input.text or "polowe",
@@ -470,11 +477,29 @@ class Form1(Form1Template):
       "actual_dose_per_product": actual_dose,
       "kwatera_ids": kwatera_ids,
       "scheduled_at": self.task_scheduled_input.text or None,
+      "weather_snapshot": result_data(snapshot, {}),
+      "t_source": "server",
     }
     result = self._server_call("mvp_create_task", payload)
     if self._handle_result(result):
       self._set_message("workspace_message", "Zadanie utworzone. Wyślij je teraz do pracownika.")
       self._refresh_tasks()
+
+  def _coordinates_for_kwatery(self, kwatera_ids):
+    selected = set(str(item) for item in kwatera_ids)
+    for parcel in self.state.kwatery:
+      if not isinstance(parcel, dict):
+        continue
+      parcel_id = value(parcel, "id", "kwatera_id", default="")
+      if str(parcel_id) not in selected:
+        continue
+      for lat_key, lon_key in (("latitude", "longitude"), ("lat", "lon")):
+        if parcel.get(lat_key) is not None and parcel.get(lon_key) is not None:
+          return parcel[lat_key], parcel[lon_key]
+      centroid = parcel.get("centroid")
+      if isinstance(centroid, dict) and centroid.get("lat") is not None and centroid.get("lon") is not None:
+        return centroid["lat"], centroid["lon"]
+    return None
 
   def _render_worker_task(self):
     task = self.state.active_task

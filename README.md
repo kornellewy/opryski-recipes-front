@@ -46,7 +46,9 @@ Task transitions use the MVP's explicit routes (`dispatch`, `worker-confirm`,
 Recipe compute uses `POST /recipes/{id}/compute?area_ha=...`; catalog products
 use `/catalog/products`; inventory lots and receipts use `/inventory` and
 `POST /inventory/lots`. Task creation obtains a retryable server weather
-snapshot before posting the task.
+snapshot from the selected kwatera coordinates
+(`POST /weather/server-snapshot?lat=...&lon=...`) before posting the task. The
+snapshot is included in the task payload with `t_source=server`.
 
 The login gateway sends OAuth2-compatible `username`, `password`, and
 `grant_type=password` fields, validates `/auth/me` before success, and clears

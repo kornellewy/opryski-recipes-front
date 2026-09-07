@@ -186,12 +186,11 @@ def mvp_create_task(payload):
     missing = _require_login()
     if missing:
         return missing
-    snapshot = mvp_server_weather_snapshot(payload)
-    if not snapshot.get("ok"):
-        return snapshot
-    task_payload = dict(payload or {})
-    task_payload["weather_snapshot"] = snapshot.get("data")
-    return _request("POST", "/spray-tasks", payload=task_payload)
+    # The client obtains the server weather snapshot from the selected
+    # kwatera first and includes that read-only result in the task payload.
+    # Keep task creation a single mutation: retrying or hiding a second
+    # weather request here would make the mutation contract ambiguous.
+    return _request("POST", "/spray-tasks", payload=payload or {})
 
 
 @anvil.server.callable
@@ -359,18 +358,16 @@ def mvp_worker_me():
 
 
 @anvil.server.callable
-def mvp_server_weather_snapshot(payload=None, longitude=None):
+def mvp_server_weather_snapshot(latitude, longitude):
     missing = _require_login()
     if missing:
         return missing
-    if longitude is not None and not isinstance(payload, dict):
-        payload = {"lat": payload, "lon": longitude}
-    if not isinstance(payload, dict):
-        return {"ok": False, "code": 422, "kind": "validation", "message": "Brak danych do snapshotu pogody."}
+    if latitude in (None, "") or longitude in (None, ""):
+        return {"ok": False, "code": 422, "kind": "validation", "message": "Brak współrzędnych do snapshotu pogody."}
     return _request(
         "POST",
         "/weather/server-snapshot",
-        payload=payload,
+        query={"lat": latitude, "lon": longitude},
         read_only=True,
     )
 

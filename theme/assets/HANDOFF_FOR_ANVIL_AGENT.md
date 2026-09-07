@@ -322,8 +322,12 @@ The requested frontend implementation plan is now applied to this checkout:
   recipe compute passes `area_ha` as a query parameter; catalog products use
   `/catalog/products`; inventory lots/receipt use `/inventory` and
   `POST /inventory/lots`.
-- `mvp_server_weather_snapshot` runs before task creation and uses a bounded
-  retryable POST without an idempotency key because the endpoint is read-only.
+- `Form1` obtains the selected kwatera coordinates, calls
+  `mvp_server_weather_snapshot`, and includes the returned snapshot plus
+  `t_source=server` in the task payload. The gateway maps this read-only call
+  to `POST /weather/server-snapshot?lat=...&lon=...`, retries bounded transient
+  failures, and never adds an idempotency key. Task creation itself is one
+  non-retried mutation.
 - Kwatera creation includes `area_ha` and `polygon_geojson`.
 - `README.md` now documents the authoritative Anvil layout and explicitly says
   that `anvil_app/`, `mvp/`, `uplink/`, and `verification/` are not part of this
@@ -362,10 +366,13 @@ The frontend gateway now matches the corrected MVP contract:
 - Recipe compute sends `area_ha` as a query parameter.
 - Catalog products use `/catalog/products`.
 - Inventory lots read from `/inventory`; receipts post to `/inventory/lots`.
-- Task creation obtains a retryable server weather snapshot before posting the
-  task. The snapshot is treated as read-only and receives no idempotency key.
+- Task creation obtains a retryable server weather snapshot from the selected
+  kwatera coordinates before posting the task. The snapshot is treated as
+  read-only, receives no idempotency key, and is posted once with the task as
+  `t_source=server`.
 - Kwatera creation sends `area_ha` and `polygon_geojson`.
 
 Verification: `python -m unittest -q tests/test_server_code_contract.py`
-reports **8 tests passing**; Python compilation and `git diff --check` pass;
+reports **10 tests passing**, including invocation of all 30 callables and
+explicit 401/403/404/409 handling; Python compilation and `git diff --check` pass;
 `anvil --json validate .` reports **18 files valid** in this environment.
