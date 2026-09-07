@@ -176,6 +176,12 @@ def mvp_tasks():
 
 
 @anvil.server.callable
+def mvp_worker_tasks():
+    missing = _require_login()
+    return missing or _request("GET", "/workers/me/tasks")
+
+
+@anvil.server.callable
 def mvp_create_task(payload):
     missing = _require_login()
     return missing or _request("POST", "/spray-tasks", payload=payload)
@@ -202,6 +208,17 @@ def mvp_task_audit(task_id):
     if not task_id:
         return {"ok": False, "code": 422, "kind": "validation", "message": "Brak poprawnego zadania."}
     return _request("GET", f"/spray-tasks/{task_id}/audit")
+
+
+@anvil.server.callable
+def mvp_task_detail(task_id):
+    missing = _require_login()
+    if missing:
+        return missing
+    task_id = _path_value(task_id)
+    if not task_id:
+        return {"ok": False, "code": 422, "kind": "validation", "message": "Brak poprawnego zadania."}
+    return _request("GET", f"/spray-tasks/{task_id}")
 
 
 @anvil.server.callable
@@ -257,6 +274,9 @@ def mvp_recipe_export(recipe_id, export_format="json"):
     recipe_id = _path_value(recipe_id)
     if not recipe_id:
         return {"ok": False, "code": 422, "kind": "validation", "message": "Brak poprawnej receptury."}
+    export_format = str(export_format or "").strip().lower()
+    if export_format not in {"json", "text"}:
+        return {"ok": False, "code": 422, "kind": "validation", "message": "Format eksportu musi być json albo text."}
     return _request("GET", f"/recipes/{recipe_id}/export", query={"format": export_format})
 
 
@@ -318,6 +338,12 @@ def mvp_inventory_reservation(reservation_id):
     if not reservation_id:
         return {"ok": False, "code": 422, "kind": "validation", "message": "Brak poprawnej rezerwacji."}
     return _request("GET", f"/inventory/reservations/{reservation_id}")
+
+
+@anvil.server.callable
+def mvp_inventory_reservations():
+    missing = _require_login()
+    return missing or _request("GET", "/inventory/reservations")
 
 
 @anvil.server.callable

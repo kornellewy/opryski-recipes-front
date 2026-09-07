@@ -272,7 +272,7 @@ class Form1(Form1Template):
       self._render_task_panels()
 
   def _refresh_worker_tasks(self):
-    result = self._server_call("mvp_tasks")
+    result = self._server_call("mvp_worker_tasks")
     if self._handle_result(result):
       self.state.apply_tasks(result)
       self._render_task_panels()
@@ -311,7 +311,11 @@ class Form1(Form1Template):
       f"Pracownik: {value(task, 'worker_name')}",
       f"Termin: {value(task, 'scheduled_at')}",
       f"Stan: {value(task, 'status')}"))
-    self._set_enabled("authorize_button", task.get("status") == "worker_confirmed")
+    # The MVP owns suitability. The UI only keeps authorization unavailable
+    # unless the server has explicitly returned a green/safe status; yellow
+    # and red are never presented as authorizable.
+    weather_safe = str(task.get("weather_status", "")).lower() in {"green", "safe", "suitable", "ok"}
+    self._set_enabled("authorize_button", task.get("status") == "worker_confirmed" and weather_safe)
     self._set_enabled("dispatch_button", task.get("status") in {"created"})
     self._set_enabled("owner_cancel_button", task.get("status") not in {"execution_completed", "cancelled"})
 
@@ -434,6 +438,11 @@ class Form1(Form1Template):
     if not task_id:
       self._set_message("workspace_message", "Brak aktywnego zadania.")
       return
+    if action == "owner-authorize":
+      weather_status = str((self.state.active_task or {}).get("weather_status", "")).lower()
+      if weather_status not in {"green", "safe", "suitable", "ok"}:
+        self._set_message("workspace_message", "Autoryzacja jest zablokowana: MVP nie zwróciło zielonych warunków.")
+        return
     result = self._server_call("mvp_task_action", task_id, action, payload or {})
     if self._handle_result(result):
       self._refresh_dashboard()

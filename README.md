@@ -35,6 +35,11 @@ Owner coverage includes recipe validation/copy/export tools and inventory
 balances, lots/receipt, movements, and reservation details. Add the Anvil secret
 `MVP_BASE_URL` before testing those flows against a disposable MVP account.
 
+Worker tasks are scoped to `GET /workers/me/tasks`. The worker mobile tabs are
+`Dziś`, `Zadanie`, and `Mapa`; action buttons mirror server states only. The
+owner authorization control remains unavailable unless the server reports an
+explicit green/safe weather status.
+
 The login gateway sends OAuth2-compatible `username`, `password`, and
 `grant_type=password` fields, validates `/auth/me` before success, and clears
 the session if validation fails. Read-only requests retry bounded transient

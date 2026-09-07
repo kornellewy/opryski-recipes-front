@@ -1,63 +1,21 @@
 # Handoff for the Python Anvil frontend coding agent
 
-This file is the implementation contract for the Anvil-side frontend. Read it
-before writing forms or server calls. The local Python MVP is the source of
-truth for auth, recipes, weather, task state, and audit records.
+This file is the implementation contract and release handoff for the Anvil
+frontend. Read it before writing forms or server calls. The external FastAPI
+MVP is the source of truth for auth, recipes, weather, task state, inventory,
+and audit records; it is not included in this checkout.
 
 ## 1. Product and architecture
 
 `opryski-recipes` is a Polish orchard-spraying management app for sadownicy.
 
-- **Local MVP (`mvp/`)**: FastAPI, SQLite, JWT/bcrypt auth, workers, recipes,
-  tank-mix ordering, weather, karencja guard, spray state machine, audit
-  snapshot, online SQLite backup.
-- **Anvil app**: UI only. The complete source package is in `anvil_app/` and
-  calls the MVP through its Anvil Server Module gateway. Do not duplicate auth,
+- **Anvil frontend**: `anvil.yaml`, `client_code/`, `server_code/`, and `theme/`
+  call the MVP through the Server Module gateway. Do not duplicate auth,
   weather thresholds, recipe calculations, catalog data, or transition rules in
   Anvil.
-- **Demo visual reference**: `demo/opryski-recipes-demo.html` — Luna-style
-  single-file prototype with left owner rail and worker bottom tabs.
-- **Canonical API docs**: `uplink/spec/endpoints.md`, `auth.md`,
-  `recipes.md`, `weather.md`; live machine schema is `GET /openapi.json`.
-- **Anvil import map**: `anvil_app/IMPORT_MAP.md`; package overview:
-  `anvil_app/README.md`.
-- **Not implemented in this MVP**: `OPEN_ISSUES.md`. Render those items as
-  disabled/roadmap UI, not successful buttons.
-
-The MVP uses UUID strings for recipe, kwatera, and task IDs. A fresh database
-is required after the 0.2 schema change; there is no migration tool yet.
-
-## 2. Local startup for the backend
-
-From the repository root:
-
-```bash
-cd mvp
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env # then set a real JWT_SECRET; load it in the shell
-export JWT_SECRET='a-random-secret-at-least-32-characters-long'
-export CORS_ORIGINS='http://127.0.0.1:7765,http://localhost:7765'
-python -m uvicorn server:app --host 127.0.0.1 --port 7765
-```
-
-For a clean isolated verification, use:
-
-```bash
-bash uplink/scripts/run_all.sh
-```
-
-The script creates a temporary DB, temporary backup directory, per-run secret,
-starts the MVP, waits for `/healthz`, runs every endpoint/response assertion,
-and removes everything on exit. It does not write to the developer's real
-`~/backups/opryski` directory.
-
-## 3. Uplink usage in Anvil
-
-Import `anvil_app/server/uplink_client.py` and `anvil_app/server/api.py` as
-Anvil Server Modules. The callable gateway stores the JWT only in
-`anvil.server.session`; never place the MVP secret or passwords in client UI.
+The gateway stores the JWT only in `anvil.server.session`; never place the MVP
+secret or passwords in client UI. Set `MVP_BASE_URL` as an Anvil secret and
+configure the published Anvil origin in the MVP CORS settings.
 
 ```python
 from anvil import server
@@ -66,10 +24,7 @@ me = server.call("mvp_login", email, password)
 dashboard = server.call("mvp_dashboard")
 ```
 
-Set the published MVP HTTPS URL in Anvil configuration. Configure the same
-published Anvil origin in the MVP `CORS_ORIGINS` environment variable.
-
-## 4. Owner desktop UI
+## 2. Owner desktop UI
 
 Use a clean, low-density, Polish-language desktop/tablet layout matching the
 demo:
@@ -260,85 +215,34 @@ Put them behind disabled controls with a `Planowane` label and link them to
 - [x] Worker can start/complete only after owner authorization.
 - [x] Owner can cancel a non-terminal task with reason and disposal flag.
 - [x] 409 responses refresh state instead of showing success.
-- [x] `bash uplink/scripts/run_all.sh` reports all steps green.
+- [x] `python -m unittest -q tests/test_server_code_contract.py` reports six passing gateway tests.
 
-## 13. Complete Anvil source package
+## 13. Authoritative Anvil source layout
 
-The requested Anvil implementation has been created under `anvil_app/`:
+This checkout contains the complete frontend source under `anvil.yaml`,
+`client_code/`, `server_code/`, and `theme/`. The external FastAPI MVP remains
+the source of truth for authentication, safety decisions, calculations,
+weather, inventory, and task transitions. No separate backend source tree is
+part of this repository.
 
-| File | Purpose |
-|---|---|
-| `server/api.py` | Server-callable gateway, JWT session, all MVP operations |
-| `server/uplink_client.py` | HTTPS client with safe retries and idempotency |
-| `client/app.py` | Startup form, session check, owner/worker routing |
-| `client/app_shell.py` | Owner navigation and worker mobile tabs |
-| `client/owner_views.py` | Panel, Mapy, Opryski, Receptury, Pracownicy, Katalog, Pogoda, Raporty, Ustawienia |
-| `client/worker_views.py` | Dziś, Zadanie, Mapa, recipe/PPE/action flow |
-| `client/state.py` | Server-backed session view cache; no database |
-| `client/widgets.py` | Luna-style reusable controls |
-| `client/helpers.py` | Display-only status/date/number/error formatting |
-| `client/custom.css` | Responsive visual theme and 60px worker actions |
-| `preview/fixtures.py` | Deterministic owner/worker demo payloads |
-| `README.md` | Feature matrix and install instructions |
-| `IMPORT_MAP.md` | Exact Anvil upload/import/Secrets steps |
+The frontend exposes server results for recipe validation/copy/export,
+inventory balances/lots/receipt/movements/reservation details, and the worker
+mobile flow. Unsupported capabilities remain disabled as `Planowane`.
 
-- The client exposes every currently callable MVP feature, including inventory
-  receipt/balances, catalog source links, recipe copy/export, and read-only OSM
-  parcel links. It renders explicit `Planowane` controls only for functionality
-  that still has no verified endpoint. It must not create an Anvil database or
-  implement a second state machine.
+## 14. Runtime and verification scope
 
-## Source files
+- The UI does not calculate chemical doses, mixing order, weather suitability,
+  karencja, or task-transition legality.
+- Worker tasks use `GET /workers/me/tasks`; worker action buttons mirror the
+  server states `dispatched`, `worker-confirmed`, `owner-approved`,
+  `execution-started`, and `execution-completed`.
+- Yellow and red weather statuses never enable owner authorization.
+- Real SMS/GSM-7, reviewed PPE/prewencja/REI, buffer checks, OSM editing,
+  update/delete, offline replay correction, billing, and multi-farm admin are
+  still visibly planned/unavailable.
 
-- API implementation: `mvp/server.py`
-- Models: `mvp/models.py`
-- Auth: `mvp/authorization.py`
-- Recipes: `mvp/recipes.py`
-- Weather: `mvp/weather.py`
-- Backups: `mvp/backup.py`
-- Client: `uplink/shared/uplink_client.py`
-- Anvil package: `anvil_app/`
-- Endpoint contract: `uplink/spec/endpoints.md`
-- Future work: `OPEN_ISSUES.md`
-- Visual reference: `demo/opryski-recipes-demo.html`
-
-## 14. UX/performance implementation status (2026-09-06)
-
-Implemented in the checked-in Anvil package:
-
-- Deterministic client messages for 401/403/404/409 plus transport/offline errors; offline last-known data is read-only.
-- Worker recipe compute is cached by `(recipe_id, area_ha)` for the view/session and shows an explicit loading/result state. The MVP remains authoritative for doses and mixing order.
-- Catalog requests are bounded to 50 records and expose explicit previous/next controls using the server's `total`, `limit`, and `offset` fields.
-- Worker tabs use a dedicated `op-worker-tabs` role and become fixed bottom navigation at mobile widths; primary controls remain 60px on mobile.
-- Owner navigation is grouped into Operacje, Gospodarstwo, and System and becomes a responsive two-column layout at <=720px.
-- Focus-visible outlines and icon-plus-text status labels are retained; no colour-only safety decision is exposed.
-
-Implemented after the initial handoff:
-
-- `/inventory`, `/inventory/lots`, `/inventory/movements`, and reservation detail are exposed through the Anvil Server Module. Receipt verifies the catalog UUID and exact catalog name; no UUID means no product link.
-- `/recipes/{id}/validation`, `/copy`, and `/export?format=json|text` are exposed. Export includes validation findings and report-source pointers; copy preserves the component snapshots but remains a draft.
-- Kwatera GeoJSON is validated as a WGS84 Polygon; the returned OpenStreetMap contract is explicitly read-only. It is a reference link, not a spray authorization or buffer calculation.
-- Localized Polish/English labels, errors, worker status, and export headings are implemented. Agronomic source text and protocol identifiers are intentionally not machine-translated.
-
-Still planned or deliberately blocked:
-
-- Full offline replay correction and accessibility audit in a real Anvil runtime; the local suite cannot render the hosted Anvil browser.
-- Per-product reviewed PPE/prewencja/REI, PDF/A-3, production SMS, OSM editing/buffers, and billing remain roadmap items. Do not invent UI approval for them.
-
-Benchmark method for the next Anvil integration pass:
-
-1. Run `mvp/.venv/bin/python -m pytest -q anvil_app/tests uplink/tests mvp/tests` and `bash uplink/scripts/run_all.sh`.
-2. Run `mvp/.venv/bin/python verification/performance_smoke.py`; the 2026-09-06 run used 30 iterations per read path and recorded catalog p95 5.31ms, recipes p95 9.676ms, kwatery p95 2.581ms, inventory p95 2.458ms, and tasks p95 2.171ms on local TestClient/SQLite.
-3. Capture response byte sizes (dashboard and catalog) and browser mobile/desktop screenshots at <=720px and >=1024px. Verify no horizontal scroll, keyboard focus visibility, 401/403/404/409 messages, and fixed worker navigation.
-4. Treat local targets as guidance only: read p95 <=100ms excluding weather, recipe/task writes <=250ms excluding bcrypt, weather <=2s with loading state. Safety checks and audit events must remain unchanged.
-
-## 15. Verified simulated QA artifacts (2026-09-06)
-
-- `verification/full-simulated-staff-e2e-20260906.json` — owner/worker lifecycle, double confirmation, green weather gate, inventory reservation/deduction, cancellation, dry-run SMS, GeoJSON/OSM, and catalog URL checks. Real SMS: false.
-- `verification/ten-recipe-qa-20260906.json` — ten isolated draft recipes, ten copies, twice-identical validation responses, JSON/text export, real catalog UUID/name/detail URL evidence. This is not a production recipe approval set.
-- `verification/performance-smoke-20260906.json` — repeatable local read-path timings; it does not represent production capacity.
-- `verification/UI-PERFORMANCE-RESEARCH-20260906.md` — local UX/performance recommendations, official references to re-check, and explicit hosted-Anvil limitations.
-- Functional gate: `123 passed` MVP tests, `7 passed` Anvil client tests, `compileall=ok`, `bash uplink/scripts/run_all.sh` `28/28 passed`.
+The separate MVP checkout and its backend test suite were not available in this
+frontend environment, so no backend test count is claimed here.
 
 ## 16. Hosted Anvil QA handoff (2026-09-06)
 
@@ -358,7 +262,7 @@ that a browser session, production MVP, SMS provider, or local `anvil_app/`,
 | App theme asset | PASS | `/_/theme/theme.css` returned HTTP 200. |
 | Checkout validation | PASS | `anvil --json validate .`: 18 files valid. |
 | Server syntax | PASS | `python -m py_compile server_code/api.py server_code/uplink_client.py`. |
-| Gateway mock suite | PASS | All 27 server callables covered across the mock run plus the logout follow-up; 32 mocked HTTP calls and 9 expected error cases. |
+| Gateway mock suite | PASS | 30 callable registrations covered by the six-test contract harness, including login rollback, retry, idempotency, export validation, and route mapping. |
 | Client helper/state smoke | PASS | Result normalization, status labels, task/recipe state, and catalog paging smoke checks passed. |
 | Browser login and role workflows | NOT RUN | No browser automation or test credentials were available in this environment. |
 | Real MVP/Uplink calls | NOT RUN | The published app's Anvil secret and external MVP base URL cannot be inspected from the checkout. |
@@ -410,6 +314,9 @@ The requested frontend implementation plan is now applied to this checkout:
 - Owner navigation now includes recipe tools for validation, copy, and export,
   plus a Magazyn view for balances, lots/receipt, movements, and reservation
   details. Any unsupported report work remains visibly `Planowane`.
+- Worker refresh uses the scoped `GET /workers/me/tasks` route. Authorization
+  remains disabled unless the server task is worker-confirmed and the server
+  weather status is explicitly green/safe.
 - `README.md` now documents the authoritative Anvil layout and explicitly says
   that `anvil_app/`, `mvp/`, `uplink/`, and `verification/` are not part of this
   frontend checkout.
@@ -419,13 +326,18 @@ Verification for this pass:
 - `anvil --json validate .`: **18 files valid**.
 - Python compilation for `server_code/api.py`, `server_code/uplink_client.py`,
   and `client_code/Form1/__init__.py`: **PASS**.
-- Mock gateway contract: **PASS** — 27 callable functions counted; OAuth2 login,
+- Mock gateway contract: **PASS** — 30 callable functions counted; OAuth2 login,
   failed `/auth/me` rollback, three-attempt read retry, mutation idempotency,
   and no-retry login/mutation behavior exercised.
+- Static Form contract: **PASS** — no duplicate `anvil:name` values, every
+  click handler has a matching component, recipe/inventory/worker controls are
+  present, and no credential literals are committed.
+- `git diff --check`: **PASS**.
 - Local MVP pytest/API smoke suite: **not available in this checkout**.
 - Hosted browser acceptance: still pending a disposable owner/worker account
   and a real Anvil browser session against the configured MVP URL.
 - Hosted GET/manifest smoke is reachable (HTTP 200), but the current published
-  bundle does not yet contain the newly added `Narzędzia receptury` label. Push
-  or publish this checkout in Anvil, then repeat the manifest and browser checks
-  before treating the hosted target as this implementation pass.
+  bundle does not yet contain the newly added `Narzędzia receptury` label or the
+  `/workers/me/tasks` contract in its serialized client bundle. Push or publish
+  this checkout in Anvil, then repeat the manifest and browser checks before
+  treating the hosted target as this implementation pass.
