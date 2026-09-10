@@ -8,7 +8,7 @@ dependencies:
 metadata: {description: 'Zarządzanie zabiegami ochrony sadu, recepturami i zgodnością.', title: Opryski Recipes}
 name: Opryski Recipes
 native_deps: null
-package_name: M3_App_1
+package_name: opryski_recipes
 runtime_options:
   client_version: '3'
   server_spec: {base: python310-minimal}
