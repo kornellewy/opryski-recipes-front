@@ -1,5 +1,35 @@
 allow_embedding: false
-db_schema: {}
+db_schema:
+  users:
+    client: none
+    columns:
+    - admin_ui: {width: 200}
+      client_hidden: false
+      name: email
+      type: string
+    - admin_ui: {width: 200}
+      client_hidden: true
+      name: enabled
+      type: bool
+    - admin_ui: {width: 200}
+      client_hidden: true
+      name: last_login
+      type: datetime
+    - admin_ui: {width: 200}
+      client_hidden: true
+      name: password_hash
+      type: string
+    - admin_ui: {width: 200}
+      client_hidden: true
+      name: n_password_failures
+      type: number
+    - admin_ui: {width: 200}
+      client_hidden: true
+      name: confirmed_email
+      type: bool
+    indexes: []
+    server: full
+    title: Users
 dependencies:
 - config: {}
   dep_id: dep_lin1x4oec0ytd
