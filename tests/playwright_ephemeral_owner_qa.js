@@ -4,18 +4,20 @@
  * intentionally never printed or persisted.
  */
 
-const { chromium } = require("playwright");
+const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 
 const APP_URL = process.env.OPRYSKI_APP_URL || "https://jaunty-infamous-seal.anvil.app/";
 const SCREENSHOT_DIR = process.env.OPRYSKI_SCREENSHOT_DIR || "/tmp/opryski-playwright-auth";
-const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+const suffix = `${Date.now()}-${crypto.randomBytes(6).toString("hex")}`;
 const credentials = {
-  email: `opryski-owner-${suffix}@example.invalid`,
+  email: `opryski-owner-${suffix}@example.com`,
   password: `Disposable-${suffix}-Aa9!`,
   fullName: "Testowy właściciel",
 };
+
+const { chromium } = require("playwright");
 
 fs.mkdirSync(SCREENSHOT_DIR, { recursive: true, mode: 0o700 });
 
@@ -33,8 +35,33 @@ async function fillInput(page, label, value, fallbackIndex) {
   await inputs.nth(fallbackIndex).fill(value);
 }
 
+function safeError(error) {
+  let message = String(error);
+  for (const value of Object.values(credentials)) {
+    if (value) message = message.split(value).join("[redacted]");
+  }
+  return message.slice(0, 300);
+}
+
 async function redactScreenshot(page, filePath) {
-  await page.addStyleTag({ content: "input, textarea { filter: blur(10px) !important; }" });
+  await page.evaluate(({ email, password, fullName }) => {
+    const replacements = [email, password, fullName].filter(Boolean);
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    const nodes = [];
+    let node;
+    while ((node = walker.nextNode())) nodes.push(node);
+    for (const textNode of nodes) {
+      let text = textNode.nodeValue || "";
+      for (const value of replacements) text = text.split(value).join("[redacted]");
+      textNode.nodeValue = text;
+    }
+    document.querySelectorAll("input, textarea").forEach((element) => {
+      element.value = "";
+      element.setAttribute("value", "");
+      element.style.visibility = "hidden";
+    });
+  }, credentials);
+  await page.addStyleTag({ content: "input, textarea { visibility: hidden !important; }" });
   await page.screenshot({ path: filePath, fullPage: true });
 }
 
@@ -45,11 +72,15 @@ async function redactScreenshot(page, filePath) {
   const consoleErrors = [];
   const pageErrors = [];
   const failedRequests = [];
+  const httpErrors = [];
   page.on("console", (message) => {
     if (message.type() === "error") consoleErrors.push(message.text().slice(0, 300));
   });
   page.on("pageerror", (error) => pageErrors.push(String(error).slice(0, 300)));
   page.on("requestfailed", (request) => failedRequests.push(request.method()));
+  page.on("response", (response) => {
+    if (response.status() >= 400) httpErrors.push(response.status());
+  });
   const screenshotPath = path.join(SCREENSHOT_DIR, "ephemeral-owner-auth.png");
   try {
     await page.goto(APP_URL, { waitUntil: "networkidle", timeout: 30000 });
@@ -57,20 +88,22 @@ async function redactScreenshot(page, filePath) {
     await fillInput(page, "Hasło", credentials.password, 1);
     await fillInput(page, "Imię i nazwisko (rejestracja)", credentials.fullName, 2);
     await page.getByRole("button", { name: "Załóż konto właściciela", exact: true }).click();
-    await page.waitForTimeout(1000);
+    const confirmation = page.getByText("Konto właściciela utworzone. Możesz się teraz zalogować.", { exact: true });
+    await confirmation.waitFor({ state: "visible", timeout: 15000 });
     const registrationText = await page.locator("body").innerText();
     if (/This app has experienced an error|ModuleNotFoundError|SecretError/i.test(registrationText)) {
       throw new Error("Anvil runtime or secret error is visible during registration");
     }
-    if (!/konto właściciela|utworzone|zalogować/i.test(registrationText)) {
-      throw new Error("Registration confirmation was not visible");
-    }
     await page.getByRole("button", { name: "Zaloguj", exact: true }).click();
-    await page.waitForTimeout(1500);
-    const loginText = await page.locator("body").innerText();
-    if (!/Panel|Właściciel gospodarstwa/i.test(loginText)) {
-      throw new Error("Owner dashboard marker was not visible after registration");
+    await page.getByRole("button", { name: "Panel", exact: true }).waitFor({ state: "visible", timeout: 15000 });
+    if (await page.getByRole("button", { name: "Zaloguj", exact: true }).isVisible().catch(() => false)) {
+      throw new Error("Owner login did not leave the login screen");
     }
+    if (consoleErrors.length || pageErrors.length || failedRequests.length || httpErrors.length) {
+      throw new Error("Browser reported console, page, request, or HTTP errors");
+    }
+    const desktopOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
+    if (desktopOverflow) throw new Error("Horizontal overflow is visible at desktop width");
     await redactScreenshot(page, screenshotPath);
     await page.setViewportSize({ width: 390, height: 844 });
     const mobileOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
@@ -80,16 +113,18 @@ async function redactScreenshot(page, filePath) {
       console_errors: consoleErrors.length,
       page_errors: pageErrors.length,
       failed_requests: failedRequests.length,
+      http_errors: httpErrors.length,
       screenshot: screenshotPath,
     });
   } catch (error) {
     await redactScreenshot(page, screenshotPath).catch(() => {});
     statusLine("ephemeral owner registration/login", "FAIL", {
-      reason: String(error).slice(0, 300),
+    reason: safeError(error),
       console_errors: consoleErrors.length,
-      page_errors: pageErrors.length,
-      failed_requests: failedRequests.length,
-      screenshot: screenshotPath,
+    page_errors: pageErrors.length,
+    failed_requests: failedRequests.length,
+    http_errors: httpErrors.length,
+    screenshot: screenshotPath,
     });
     process.exitCode = 1;
   } finally {

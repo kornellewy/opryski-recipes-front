@@ -19,6 +19,10 @@ class FakeHttpError(Exception):
         self.content = None
 
 
+class FakeSecretError(Exception):
+    pass
+
+
 class FakeSession(dict):
     def set(self, key, value):
         self[key] = value
@@ -31,6 +35,7 @@ class ServerCodeContractTests(unittest.TestCase):
         cls.calls = []
         cls.scripted = []
         cls.session = FakeSession()
+        cls.secret_missing = False
 
         anvil = types.ModuleType("anvil")
         server = types.ModuleType("anvil.server")
@@ -40,7 +45,8 @@ class ServerCodeContractTests(unittest.TestCase):
         server.callable = lambda function: function
         http.HttpError = FakeHttpError
         http.request = cls._request
-        secrets.get_secret = lambda name: "https://mvp.example"
+        secrets.SecretError = FakeSecretError
+        secrets.get_secret = cls._get_secret
         anvil.server = server
         anvil.http = http
         anvil.secrets = secrets
@@ -56,6 +62,12 @@ class ServerCodeContractTests(unittest.TestCase):
         cls.uplink = importlib.import_module("uplink_client")
         cls.api = importlib.import_module("api")
         cls.uplink.time.sleep = lambda _: None
+
+    @classmethod
+    def _get_secret(cls, name):
+        if cls.secret_missing:
+            raise FakeSecretError()
+        return "https://mvp.example"
 
     @classmethod
     def _request(cls, url, **kwargs):
@@ -75,6 +87,15 @@ class ServerCodeContractTests(unittest.TestCase):
         self.calls.clear()
         self.scripted.clear()
         self.session.clear()
+        type(self).secret_missing = False
+
+    def test_missing_mvp_secret_is_an_explicit_configuration_result(self):
+        type(self).secret_missing = True
+        result = self.api.mvp_register("owner@example.com", "secret", "Owner")
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["code"], 503)
+        self.assertEqual(result["kind"], "configuration")
+        self.assertEqual(len(self.calls), 0)
 
     def test_successful_login_uses_oauth2_fields(self):
         result = self.api.mvp_login("owner@example.com", "secret")

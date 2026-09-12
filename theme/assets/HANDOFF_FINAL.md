@@ -1,111 +1,127 @@
-# Final Git + Playwright Verification Handoff — Opryski Recipes
+# Opryski Recipes — Canonical Verification Handoff
 
-Updated: 2026-09-09
+Updated: 2026-09-12
 
-This is the canonical verification record for the Anvil frontend. It reports
-what was verified in the current checkout and keeps hosted blockers explicit.
+This record describes the current Anvil source package and the evidence
+available from this checkout. Production acceptance remains blocked until the
+external MVP connection and authenticated hosted workflows are exercised.
 
-## Source
+## Source and layout
 
 Repository: `https://github.com/kornellewy/opryski-recipes-front.git`
 
-Current checkout: `master`, clean after Anvil auto-sync, one local commit ahead
-of `origin/master == bb8c74b`. That local commit adds only this handoff and the
-two credential-safe Playwright runners; no application source was changed.
-It has not been pushed from this environment.
+The current Anvil package uses `anvil.yaml`, `client_code/`, `server_code/`,
+and `theme/`. Its startup form is `Form1`; `client_code/App/` is a shared
+client package containing state and display helpers, not an `App` Form. The
+`client/app.py:App` setup prompt refers to a different package layout and must
+not be applied by changing this app's `startup_form` to a nonexistent Form.
 
-The authoritative app source is `anvil.yaml`, `client_code/`, `server_code/`,
-and `theme/`. The legacy package identifier `M3_App_1` is retained in the
-manifest; the product display name is `Opryski Recipes`.
+The source manifest contains:
 
-## Verified locally
+~~~yaml
+name: Opryski Recipes
+metadata:
+  title: Opryski Recipes
+package_name: opryski_recipes
+startup_form: Form1
+~~~
 
-- `python tests/test_server_code_contract.py`: **10 passed**.
-- `anvil --json validate .`: **18 files valid**.
-- Python compilation for gateway, state, helpers, and Forms: **PASS**.
-- `git diff --check`: **PASS**.
-- Server callables: **30/30 covered** by the contract harness.
-- M3 source paths: **27 TextBox + 3 TextArea** under
-  `m3._Components.TextInput`; stale direct paths: **0**.
-- Client `typing` imports and `Any` annotations: **none**.
-- Static component/click-handler/recipe/inventory/worker checks: **PASS**.
+`package_name` is the internal Anvil identifier. The product display title is
+`Opryski Recipes`. The published PWA manifest currently derives its name as
+`opryski_recipes`; changing that hosted setting requires the authorized Anvil
+IDE.
 
-The local contract suite covers OAuth2 login fields, `/auth/me` rollback,
-bounded read retries, mutation idempotency, no retry for login/mutations,
-weather snapshot routing, export validation, HTTP error mapping, and all
-callable registrations.
+## Local implementation
 
-## Public hosted checks
+- Material 3 source paths: 27 `TextBox` and 3 `TextArea` under
+  `m3._Components.TextInput`; stale direct paths: 0.
+- Client code has no `typing` import or `Any` annotation.
+- Owner navigation, recipe validation/copy/export, inventory balances/lots/
+  receipt/movements/reservation details, and worker mobile tabs are present.
+- Unsupported capabilities remain disabled and labelled `Planowane`.
+- The gateway keeps JWTs in `anvil.server.session`, sends OAuth2 login fields,
+  validates `/auth/me`, retries read-only requests, and gives mutations one
+  fresh idempotency key. Login and the read-only weather snapshot do not get
+  mutation keys.
+- A missing `MVP_BASE_URL` secret now returns an explicit configuration result
+  instead of raising an Anvil runtime error screen.
+
+## Automated checks
+
+Executed in this checkout:
+
+~~~text
+python tests/test_server_code_contract.py: PASS — 11 tests
+Server callable registrations: PASS — 30/30
+anvil --json validate .: PASS — 18 files valid
+Python compilation: PASS
+Client typing/Any scan: PASS
+M3 stale/corrected path scan: PASS — 0 stale, 30 corrected
+Component and click-handler checks: PASS
+git diff --check: PASS
+Credential scan: PASS — no real credentials
+~~~
+
+The added missing-secret regression test covers the hosted failure mode seen in
+the earlier browser run. Playwright runner scripts are syntax-valid, but this
+checkout does not include Playwright or Chromium, so authenticated browser
+flows were not executed here.
+
+## Public hosted smoke
 
 Target: `https://jaunty-infamous-seal.anvil.app/`
 
-- Application GET: **HTTP 200**.
-- Page title: **Opryski Recipes**.
-- Published bundle: corrected M3 component paths present; stale direct paths and
-  the old `typing` error are absent.
-- `/_/manifest.json`: **HTTP 200**, but currently reports `M3 App 1` for both
-  `name` and `short_name`.
-
-The manifest naming issue cannot be fixed by changing `package_name`: that is
-the required internal identifier. The app owner must change the hosted Anvil
-display/PWA name in the authorized IDE and publish it.
-
-## Authenticated release blockers
-
-The hosted runtime previously reported:
+Direct HTTP checks from this environment:
 
 ~~~text
-anvil.secrets.SecretError: No such secret 'MVP_BASE_URL'
+Application GET: HTTP 200
+HTML title: Opryski Recipes
+Manifest GET: HTTP 200
+Published bundle: corrected TextInput M3 path present; stale path absent
 ~~~
 
-Therefore these remain **NOT VERIFIED** here:
+The current manifest response reports `name` and `short_name` as
+`opryski_recipes`, not the requested human-readable `Opryski Recipes`. The
+authorized owner must change the hosted display/PWA name and publish it.
 
-- hosted `MVP_BASE_URL` and MVP CORS;
-- real Server Module/Uplink request;
-- owner and worker login plus `/auth/me`;
-- recipe, inventory, weather-gated task, and cancellation flows;
-- hosted 401/403/404/409 behavior.
+## Hosted MVP and authentication status
 
-The frontend origin must be allowed by MVP CORS, but it must not be used as
-`MVP_BASE_URL`. Configure the secret to the separate external FastAPI MVP HTTPS
-URL. Never commit or print secrets, JWTs, passwords, or Uplink keys.
+`https://jaunty-infamous-seal.anvil.app` is the frontend origin. It belongs in
+the external MVP CORS allowlist and must not be used as `MVP_BASE_URL`.
 
-## Playwright runners
+The Anvil Secret `MVP_BASE_URL` must contain the separate published HTTPS URL
+of the FastAPI MVP. Its hosted value, hosted CORS, real Server Module/Uplink
+requests, owner/worker login, recipe, inventory, weather gates, task
+transitions, cancellation, and hosted 401/403/404/409 checks are not verified
+from this environment. No credentials, JWTs, or keys were used.
 
-The credential-safe runners are:
+The reported Anvil publish attempt was denied for app `GG6QEJZ4UB72TQJU`; the
+owner must publish from an authorized Anvil account. Any previously exposed
+Uplink keys must be revoked and rotated before Uplink use.
 
-- `tests/playwright_manual_auth_qa.js`
-- `tests/playwright_ephemeral_owner_qa.js`
+## Required owner actions
 
-They read credentials only from local environment variables, avoid printing
-credential values, write status-only screenshots, and check desktop (1280x900)
-and mobile (390x844) viewports. They require a local
-Playwright installation supplied through `NODE_PATH`; this checkout does not
-contain Playwright or Chromium, so they were not executed in this environment.
-
-Example after configuring the authorized Anvil app:
-
-~~~bash
-export OPRYSKI_APP_URL='https://jaunty-infamous-seal.anvil.app/'
-export OPRYSKI_OWNER_EMAIL='[set locally]'
-export OPRYSKI_OWNER_PASSWORD='[set locally]'
-export OPRYSKI_WORKER_EMAIL='[set locally]'
-export OPRYSKI_WORKER_PASSWORD='[set locally]'
-NODE_PATH=/path/to/playwright/node_modules node tests/playwright_manual_auth_qa.js
-~~~
-
-Use disposable accounts only. Production acceptance must remain blocked until
-the hosted secret/CORS configuration, manifest name, and authenticated
-owner/worker workflows pass at desktop and mobile widths.
+1. Open the intended app in the authorized Anvil IDE and confirm the imported
+   source uses `Form1` as startup form.
+2. Confirm the Material 3 dependency `m3` version `v1.2.6` resolves.
+3. Publish the current source, including the missing-secret handling fix.
+4. Set `MVP_BASE_URL` to the external FastAPI MVP URL and allow the Anvil
+   origin through MVP CORS.
+5. Change the hosted PWA/display name to `Opryski Recipes`.
+6. Run disposable owner and worker browser flows at desktop and mobile widths,
+   including recipe, inventory, weather-gated task transitions, cancellation,
+   and visible 401/403/404/409 handling.
+7. Save screenshots and console/network results without storing credentials.
 
 ## Release decision
 
 ~~~text
 Source and local implementation: PASS
+Gateway and callable contract: PASS — 11 tests, 30 callables
 Anvil validation: PASS — 18 files valid
-Public HTTP/bundle smoke: PASS
-Manifest product name: BLOCKED — still M3 App 1
-MVP_BASE_URL/CORS: BLOCKED — hosted secret not verified
-Authenticated owner/worker QA: NOT RUN
+Public HTTP/title/bundle smoke: PASS
+Hosted manifest human-readable name: BLOCKED — currently opryski_recipes
+Hosted MVP_BASE_URL/CORS: BLOCKED — not verified
+Authenticated hosted QA: NOT RUN
 Production acceptance: BLOCKED
 ~~~

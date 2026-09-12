@@ -11,6 +11,7 @@ import uuid
 from urllib.parse import urlencode
 
 import anvil.http
+import anvil.secrets
 from anvil import secrets, server
 
 
@@ -24,7 +25,13 @@ class MvpClient:
 
     @staticmethod
     def _read_base_url():
-        value = secrets.get_secret("MVP_BASE_URL")
+        try:
+            value = secrets.get_secret("MVP_BASE_URL")
+        except anvil.secrets.SecretError:
+            # A missing Anvil secret is a deployment configuration problem,
+            # not an application crash.  Keep the callable result-shaped so
+            # the client can show the owner what must be configured.
+            return ""
         return (value or "").strip().rstrip("/")
 
     @staticmethod

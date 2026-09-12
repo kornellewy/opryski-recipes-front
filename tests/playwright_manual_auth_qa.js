@@ -7,7 +7,6 @@
  * Use disposable accounts and run with Playwright supplied through NODE_PATH.
  */
 
-const { chromium } = require("playwright");
 const fs = require("fs");
 const path = require("path");
 
@@ -25,6 +24,8 @@ if (missing.length) {
   console.error(`Missing required environment variables: ${missing.join(", ")}`);
   process.exit(2);
 }
+
+const { chromium } = require("playwright");
 
 fs.mkdirSync(SCREENSHOT_DIR, { recursive: true, mode: 0o700 });
 
@@ -45,9 +46,34 @@ async function fillInput(page, label, value, fallbackIndex) {
   await inputs.nth(fallbackIndex).fill(value);
 }
 
-async function redactScreenshot(page, filePath) {
+function safeError(error, credentials) {
+  let message = String(error);
+  for (const value of credentials) {
+    if (value) message = message.split(value).join("[redacted]");
+  }
+  return message.slice(0, 300);
+}
+
+async function redactScreenshot(page, filePath, credentials) {
+  await page.evaluate(({ email, password }) => {
+    const replacements = [email, password].filter(Boolean);
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    const nodes = [];
+    let node;
+    while ((node = walker.nextNode())) nodes.push(node);
+    for (const textNode of nodes) {
+      let text = textNode.nodeValue || "";
+      for (const value of replacements) text = text.split(value).join("[redacted]");
+      textNode.nodeValue = text;
+    }
+    document.querySelectorAll("input, textarea").forEach((element) => {
+      element.value = "";
+      element.setAttribute("value", "");
+      element.style.visibility = "hidden";
+    });
+  }, { email: credentials[0], password: credentials[1] });
   await page.addStyleTag({
-    content: "input, textarea { filter: blur(10px) !important; }",
+    content: "input, textarea { visibility: hidden !important; }",
   });
   await page.screenshot({ path: filePath, fullPage: true });
 }
@@ -73,22 +99,27 @@ async function runRole(browser, role, email, password, viewport) {
     await page.goto(APP_URL, { waitUntil: "networkidle", timeout: 30000 });
     const title = await page.title();
     if (title !== "Opryski Recipes") throw new Error(`Unexpected page title: ${title}`);
-    const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
-    if (overflow) throw new Error("Horizontal overflow is visible");
     await fillInput(page, "Email", email, 0);
     await fillInput(page, "Hasło", password, 1);
     await page.getByRole("button", { name: "Zaloguj", exact: true }).click();
-    await page.waitForTimeout(1500);
-
+    const marker = role === "owner"
+      ? page.getByRole("button", { name: "Panel", exact: true })
+      : page.getByRole("button", { name: "Dziś", exact: true });
+    await marker.waitFor({ state: "visible", timeout: 15000 });
     const bodyText = await page.locator("body").innerText();
     if (/This app has experienced an error|ModuleNotFoundError|SecretError/i.test(bodyText)) {
       throw new Error("Anvil runtime error screen is visible");
     }
-    const roleMarker = role === "owner"
-      ? /Panel|Właściciel gospodarstwa/i.test(bodyText)
-      : /Dziś|Zadanie|Pracownik/i.test(bodyText);
-    if (!roleMarker) throw new Error(`Expected ${role} role marker was not visible`);
-    await redactScreenshot(page, screenshotPath);
+    const loginButton = page.getByRole("button", { name: "Zaloguj", exact: true });
+    if (await loginButton.isVisible().catch(() => false)) {
+      throw new Error(`${role} login did not leave the login screen`);
+    }
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
+    if (overflow) throw new Error("Horizontal overflow is visible after login");
+    if (consoleErrors.length || pageErrors.length || failedRequests.length || httpErrors.length) {
+      throw new Error("Browser reported console, page, request, or HTTP errors");
+    }
+    await redactScreenshot(page, screenshotPath, [email, password]);
     statusLine(`${role} login (${viewport.label})`, "PASS", {
       title,
       console_errors: consoleErrors.length,
@@ -98,9 +129,9 @@ async function runRole(browser, role, email, password, viewport) {
       screenshot: screenshotPath,
     });
   } catch (error) {
-    await redactScreenshot(page, screenshotPath).catch(() => {});
+    await redactScreenshot(page, screenshotPath, [email, password]).catch(() => {});
     statusLine(`${role} login (${viewport.label})`, "FAIL", {
-      reason: String(error).slice(0, 300),
+      reason: safeError(error, [email, password]),
       console_errors: consoleErrors.length,
       page_errors: pageErrors.length,
       failed_requests: failedRequests.length,
@@ -131,6 +162,6 @@ async function runRole(browser, role, email, password, viewport) {
     await browser.close();
   }
 })().catch((error) => {
-  console.error(`Playwright runner failed: ${String(error).slice(0, 300)}`);
+  console.error("Playwright runner failed before role execution");
   process.exitCode = 1;
 });
